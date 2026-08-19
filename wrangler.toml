@@ -1,0 +1,18 @@
+name = "odyssey-watcher"
+main = "src/index.ts"
+compatibility_date = "2026-05-03"
+
+[triggers]
+crons = ["*/2 * * * *"]
+
+[[kv_namespaces]]
+binding = "WATCHER_KV"
+id = "7994816bf4e64e61a96c1a73556d2b11"
+
+[vars]
+# Optional one-off blitz window (ISO datetimes, UTC or with offset): poll every cron tick between these.
+BLITZ_START = ""
+BLITZ_END = ""
+
+[observability]
+enabled = true

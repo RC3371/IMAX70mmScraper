@@ -1,0 +1,8 @@
+# Copy to .dev.vars (gitignored) and fill in. Every value is optional —
+# a notification channel is skipped (with a log line) if its secret is unset.
+NTFY_TOPIC=
+DISCORD_WEBHOOK_URL=
+RESEND_API_KEY=
+ALERT_EMAIL=
+# Future: official AMC vendor key, if ever approved
+AMC_API_KEY=

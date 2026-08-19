@@ -1,0 +1,27 @@
+# dependencies
+node_modules/
+
+# build output
+dist/
+*.tsbuildinfo
+
+# cloudflare / wrangler
+.wrangler/
+# local secrets — NEVER commit. keep .dev.vars.example (below) as the template.
+.dev.vars
+.dev.vars.*
+!.dev.vars.example
+
+# logs
+*.log
+npm-debug.log*
+yarn-error.log*
+
+# os / editor cruft
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# test coverage
+coverage/
