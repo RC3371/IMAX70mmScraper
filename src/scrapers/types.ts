@@ -1,5 +1,5 @@
 export interface Performance {
-  source: "fandango" | "amc";
+  source: "fandango";
   theater: string;
   perfId: string;
   localDate: string; // YYYY-MM-DD, PT

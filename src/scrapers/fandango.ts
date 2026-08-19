@@ -2,12 +2,11 @@ import type { FetchResult, Performance } from "./types";
 import { FORMAT_70MM_RE, MOVIE_TITLE_RE, USER_AGENT } from "../config";
 
 interface FandangoShowtime {
-  // The numeric `id` is inconsistent — present in live responses but absent in
-  // some (observed missing for Dune: Part Three). `showtimeHashCode` is always
-  // present and is Fandango's canonical per-showtime id (it's embedded in the
-  // jump/buy URL), so we key the seen-set on it. Keying on `id` would let the
-  // same show flip perfIds between runs when `id` comes and goes → duplicate
-  // alerts. See perfIdFor().
+  // The numeric `id` is inconsistent — present in some responses, absent in
+  // others, and observed changing over time for the same show. `showtimeHashCode`
+  // is always present and is Fandango's canonical per-showtime id (it's embedded
+  // in the jump/buy URL), so we key the seen-set on it. Keying on `id` would let
+  // the same show flip perfIds between runs → duplicate alerts. See perfIdFor().
   id?: number;
   showtimeHashCode?: string;
   expired: boolean;
@@ -74,6 +73,9 @@ function parseNapi(
       for (const group of variant.amenityGroups ?? []) {
         const amenityStr = (group.amenities ?? []).map((a) => a.name).join(", ");
         for (const st of group.showtimes ?? []) {
+          // Skip past/expired shows — a watched date can be "today" with
+          // earlier showtimes already gone; those aren't buyable tickets.
+          if (st.expired || st.type === "pastshowtime") continue;
           const formats = (st.filmFormat ?? []).map((f) => f.filterName);
           const label = formats.join(", ") || amenityStr;
           const is70 =

@@ -1,24 +1,19 @@
-# CLAUDE.md — Dune: Part Three IMAX 70mm Ticket Watcher
+# CLAUDE.md — The Odyssey IMAX 70mm Ticket Watcher (weekend filter)
 
 Project instructions for Claude Code. Read this fully before writing code.
 
-> **Build reality (as shipped):** the working source is **Fandango's internal JSON for both theaters** — not the AMC API / Regal scrape this doc originally proposed (no AMC vendor key was granted; Regal-direct and, as of the Dune repurpose, AMC's own site are bot/queue-walled). See [README.md](README.md) for the as-built source strategy; §4 below is retained as background.
+> **Build reality (as shipped):** the working source is **Fandango's internal JSON** — not the AMC API / Regal scrape this doc originally proposed (no AMC vendor key was granted; Regal-direct and AMC's own site are bot/queue-walled). This branch watches a **single theater** (Hacienda). See [README.md](README.md) for the as-built strategy; §4 below is retained as background.
 
 ## 1. What this is
 
-A personal, read-only monitor that watches two theaters for **Dune: Part Three (2026, Denis Villeneuve) in IMAX 70mm** and alerts the owner the moment a **new** IMAX 70mm showtime dated **December 17, 2026 or later** appears for sale. Two distinct goals, one mechanism:
-1. **New dates** — the **Dec 21+** block is not yet announced; catch it on first appearance.
-2. **Additions** — the **Dec 17–20** preview/opening days are already listed with 2 IMAX 70mm shows each; catch any *extra* showtime added to them.
+A personal, read-only monitor that watches **one theater** for **The Odyssey (2026, Christopher Nolan) in IMAX 70mm** and alerts the owner the moment a **new** qualifying showtime appears for sale, on a set of target weekends.
 
-(This project previously tracked *The Odyssey* for an Aug 13+ drop; it was repurposed to Dune. Same infrastructure, same theaters.)
+- **Theater:** **Regal Hacienda Crossings** — Dublin, CA (only). `America/Los_Angeles`; all date/time logic is Pacific local.
+- **Qualifying rule:** the show falls on a watched weekend date (`WATCH_DATES` in [src/config.ts](src/config.ts) — Sep 25–27, Oct 2–4, 9–11, 16–18, 23–25) **and** — Friday shows start **≥ 15:00** (`FRIDAY_EARLIEST`, 3:00 PM), Saturday/Sunday any time.
 
-Two theaters:
-- **AMC Metreon 16** — San Francisco, CA
-- **Regal Hacienda Crossings** — Dublin, CA
+(This project previously tracked *Dune: Part Three* (both theaters, Dec 17+) and, before that, *The Odyssey* for an Aug 13+ drop. Same infrastructure; this `Odyssey` branch narrows to one theater + a day-of-week/time filter.)
 
-Both are in `America/Los_Angeles`. All date logic uses Pacific local time.
-
-**Trigger definition (agreed):** an alert fires when any IMAX 70mm performance of Dune: Part Three with a **local show date ≥ 2026-12-17** appears at either theater and was not already in the seen-set. Because Dec 17–20 are already listed, the seen-set **must be seeded** on cutover so those don't fire — only genuinely new performances alert. We do *not* gate on the buy button being active or on seat counts — first appearance is the signal.
+**Trigger definition (agreed):** an alert fires when any IMAX 70mm performance of The Odyssey at Hacienda that satisfies the qualifying rule appears and was not already in the seen-set. Seed on cutover so any currently-listed qualifying shows don't fire — only genuinely new performances alert. We do *not* gate on the buy button being active or on seat counts — first appearance is the signal.
 
 ## 2. Non-negotiable constraints
 
@@ -66,11 +61,11 @@ Regal has no equivalent public API, so this side is scrape-y and should be polle
 
 These were discovered live and now live in [src/config.ts](src/config.ts):
 
-1. **Fandango theater IDs:** Metreon 16 = `AANEM`, Hacienda Crossings = `AAOPK`. Endpoint `GET https://www.fandango.com/napi/theaterMovieShowtimes/{ID}?startDate=YYYY-MM-DD&numberOfDays=1`, after priming the theater page for Akamai cookies.
-2. **Movie title (Fandango):** `Dune: Part Three (2026)`; matched by `MOVIE_TITLE_RE = /dune/i`.
+1. **Fandango theater ID (only one now):** Hacienda Crossings = `AAOPK`. Endpoint `GET https://www.fandango.com/napi/theaterMovieShowtimes/AAOPK?startDate=YYYY-MM-DD&numberOfDays=1`, after priming the theater page for Akamai cookies. (Metreon `AANEM` and the AMC SSR path were removed on this branch — single theater.)
+2. **Movie title (Fandango):** `The Odyssey (2026)`; matched by `MOVIE_TITLE_RE = /odyssey/i`.
 3. **IMAX 70mm label:** Fandango `filmFormat[].filterName = "IMAX 70MM"`; filter `FORMAT_70MM_RE` also tolerates "70MM IMAX" / "IMAX® 70MM Film".
-4. **AMC (dormant):** theatreId `2325`, group-id prefix `dune-part` (used by the SSR parser). AMC's site is now Queue-It walled, so this path is best-effort only.
-5. **No AMC vendor key** was granted; Fandango is the primary and only reliable source.
+4. **Showtime dedup key:** Fandango's numeric `id` is unstable/sometimes absent, so `perfId` keys on the always-present canonical `showtimeHashCode` (`fd:v2-…`). Expired/past shows are skipped in the parser.
+5. **No AMC vendor key** was granted; Fandango is the only source.
 
 ## 6. Refresh cadence
 
@@ -94,10 +89,10 @@ Free-tier math: a 2-min cron is 720 invocations/day, each doing a handful of fet
 - Maintain a **seen-set** in KV keyed by a stable performance ID:
   - AMC: the showtime `id`.
   - Regal: `theaterId | date | time | auditorium` hashed, if no stable id is exposed.
-- Store as a KV object `seen:performances` → `{ [perfId]: firstSeenISO }`, plus `meta:lastRun` → `{ ts, perTheaterCounts, errors }`.
-- Each run, per theater: fetch → filter to **Dune: Part Three + IMAX 70mm + local date ≥ 2026-12-17** → for any perf not in the seen-set, collect as "new", then write them into the set.
-- **Alert once per performance.** Because KV is eventually consistent, read the set at the start of the run, compute new items, send alerts, then write — and have the notifier itself no-op if the perf id is already marked notified. Crons don't overlap heavily, so this is sufficient.
-- **Seed on cutover (mandatory here):** Dec 17–20 are already listed, so load the currently-listed showtimes into the seen-set once via `POST /api/seed`, so only a genuinely new Dec 17–20 addition or the first Dec 21+ appearance triggers — not the initial backfill. (Contrast the old Odyssey setup, where the Aug 13 threshold sat above all listings and seeding was near-empty.)
+- Store as a KV object `seen:performances` → `{ [perfId]: firstSeenISO }`, plus `meta:lastRun` → `{ ts, qualifyingPerfs, odysseyShowsFound, newCount, errors }`.
+- Each run: fetch the watched dates at Hacienda → filter to **The Odyssey + IMAX 70MM + non-expired** → apply the qualifying rule (`qualifies()` in [src/detect.ts](src/detect.ts): watched-weekend date, Friday ≥ 15:00, Sat/Sun any) → for any perf not in the seen-set, collect as "new", then write them into the set.
+- **Alert once per performance.** Because KV is eventually consistent, read the set at the start of the run, compute new items, send alerts, then write — and the notifier no-ops if the perf id is already marked `notified:`. Crons don't overlap heavily, so this is sufficient.
+- **Seed on cutover:** load any currently-listed qualifying shows into the seen-set once via `POST /api/seed`, so only genuinely new ones trigger — not the initial backfill.
 
 ## 8. Notifications (all three fire on trigger)
 
@@ -173,12 +168,11 @@ Build order suggestion: (1) resolve the §5 identifiers with throwaway scripts a
 
 ## 12. Testing the thing that matters
 
-The single most important test: **seed the set with the currently-listed Dec 17–20 showtimes, then (a) inject an extra Dec 17 showtime and (b) inject a Dec 21 showtime, and assert exactly one alert per channel fires for each — and that a second run with the same data fires nothing.** Case (a) is the "additions to an already-listed day" path and case (b) the "new date" path. If that passes and live fetches return real data, the watcher works. See [test/detect.test.ts](test/detect.test.ts).
+The single most important test: **seed the set with the currently-listed qualifying shows, then inject (a) a new Saturday show and (b) a new Friday 3:00 PM show, and assert exactly one alert per channel fires — while a Friday 2:30 PM show, a weekday show, and a date outside `WATCH_DATES` do NOT fire — and that a second run with the same data fires nothing.** This exercises both the weekend membership and the Friday time cutoff. If that passes and live fetches return real data, the watcher works. See [test/detect.test.ts](test/detect.test.ts).
 
 ## 13. Failure modes to handle
 
-- Source returns 403/429 → exponential backoff, skip this run, record in `meta.lastRun.errors`, do **not** crash the whole cron.
-- AMC key rejected → fall back to internal-JSON path; surface a clear log line.
+- Source returns 403/429 → back off, skip this run, record in `meta.lastRun.errors`, do **not** crash the cron.
 - Format label drift (source renames "IMAX 70mm") → log unmatched formats so the filter can be widened rather than silently missing the drop.
 - KV write lag causing a duplicate alert → notifier dedup guard (§7) absorbs it.
-- One source down shouldn't block the other — fetch them independently and alert on whichever succeeds.
+- Zero Odyssey shows in the window is **normal** (booking window hasn't reached the watched dates, or the engagement ended) — not an error; only `errors[]` signals a real failure.

@@ -60,6 +60,13 @@ export function jitterMs(maxMs = 15000): number {
 
 export const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
+// Day of week (0=Sun … 6=Sat) for a PT calendar-date string "YYYY-MM-DD".
+// The date is already theater-local, so read it at UTC midnight — tz-safe.
+export function dayOfWeek(localDate: string): number {
+  return new Date(`${localDate}T00:00:00Z`).getUTCDay();
+}
+export const FRIDAY = 5;
+
 // List of YYYY-MM-DD dates starting at `from` (inclusive), n days.
 export function dateRange(from: string, n: number): string[] {
   const [y, m, d] = from.split("-").map(Number);

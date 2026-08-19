@@ -1,14 +1,15 @@
-# Dune: Part Three IMAX 70mm Watcher
+# The Odyssey IMAX 70mm Watcher
 
-Read-only Cloudflare Worker that watches **AMC Metreon 16** and **Regal Hacienda Crossings** for **Dune: Part Three (2026) — IMAX 70mm** showtimes dated **2026-12-17 or later** (PT) and alerts via ntfy / Discord / email the moment a new one appears. This catches two things at once: **extra showtimes added to the listed Dec 17–20 previews**, and the **still-unannounced Dec 21+ block**.
+Read-only Cloudflare Worker that watches **Regal Hacienda Crossings** (Dublin, CA) for **The Odyssey (2026) — IMAX 70mm** showtimes on a set of target weekends, and alerts via ntfy / Discord / email the moment a new qualifying one appears.
+
+**What qualifies:** a show on one of the watched weekends (`WATCH_DATES` in [src/config.ts](src/config.ts) — currently Sep 25–27, Oct 2–4, 9–11, 16–18, 23–25) where **Friday shows start at/after 3:00 PM** (`FRIDAY_EARLIEST`) and **Saturday/Sunday shows qualify any time**. Add weekends by extending `WATCH_DATES`.
 
 ## How it works
 
-- **Primary source (both theaters): Fandango's internal JSON** (`/napi/theaterMovieShowtimes/{AANEM|AAOPK}`), with a cookie-prime request first. Verified working server-side; Regal's own site hard-blocks non-browser traffic, and AMC's GraphQL is bot-walled.
-- **Second signal (Metreon): AMC's SSR showtimes HTML** — parsed for Dune `imax70mm` showtimes; throttled to ~10 min. **Currently dormant**: AMC's site is behind a Queue-It wall (302 → `queue.amctheatres.com`), so this path logs `queue-walled` and Fandango is the sole working source.
-- Each run scans **Dec 17–24** (the 4 listed preview days plus the leading edge of the unannounced block). **Dec 17 doubles as the health canary** (known-positive, 2 shows/theater): a zero canary count means the pipeline broke, not that there's no drop — surfaced on the status page and logs.
-- **Seeding is mandatory** before going live: the current Dec 17–20 shows are already listed, so the seed absorbs them and only genuine additions / new dates alert.
-- Cron fires every 2 min; fetches actually run every 15 min baseline, every 2 min during hot windows (00:00–09:00 PT and all day Thu/Fri), every tick during an optional `BLITZ_START`/`BLITZ_END` window. Runs are jittered 0–15 s.
+- **Single source: Fandango's internal JSON** for Hacienda (`/napi/theaterMovieShowtimes/AAOPK`), with a cookie-prime request first. Verified working server-side; Regal's own site hard-blocks non-browser traffic. (Metreon and the AMC path from earlier movie configs were dropped — this watches one theater.)
+- Each run fetches the 15 watched dates, filters to **The Odyssey + IMAX 70MM + non-expired**, then applies the weekend/time rule. `odysseyShowsFound` (any 70mm show in the window) is an informational health hint; the real failure signal is a non-empty `errors[]` (a Fandango 403/timeout). Zero shows is normal until the booking window reaches these dates.
+- **Politeness throttle:** the cron fires every 2 min but scheduled runs actually hit Fandango at most every ~12 min (`FETCH_MIN_INTERVAL_MS`); manual `/api/refresh` bypasses it.
+- **Seed on cutover** so already-listed qualifying shows don't all alert on run 1 — then only genuinely new ones fire.
 - Seen-set + notified-guard in KV → exactly one alert per new performance.
 
 ## Deploy (one-time)
@@ -22,8 +23,8 @@ npx wrangler secret put NTFY_TOPIC
 npx wrangler secret put DISCORD_WEBHOOK_URL
 npx wrangler secret put RESEND_API_KEY
 npx wrangler secret put ALERT_EMAIL
-# REQUIRED — seed the seen-set once (absorbs the listed Dec 17–20 shows so only
-# genuine additions / new dates alert). Skipping this fires ~16 alerts on run 1:
+# Seed the seen-set once (absorbs any already-listed qualifying shows so only
+# genuinely new ones alert):
 curl -X POST https://<your-worker-url>/api/seed
 # verify alerts end-to-end:
 curl -X POST https://<your-worker-url>/api/test-alert

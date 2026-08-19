@@ -40,7 +40,7 @@ export default {
         return json({ error: "rate limited — wait 10s" }, 429);
       }
       await env.WATCHER_KV.put(KV_REFRESH_LOCK, new Date().toISOString(), { expirationTtl: 60 });
-      const meta = await runCheck(env);
+      const meta = await runCheck(env, { force: true }); // manual refresh bypasses the fetch throttle
       return json(meta);
     }
 
@@ -57,12 +57,12 @@ export default {
       const { title, body, clickUrl } = formatAlert([
         {
           source: "fandango",
-          theater: "TEST — AMC Metreon 16",
+          theater: "TEST — Regal Hacienda Crossings",
           perfId: "test:1",
-          localDate: "2026-12-21",
-          localTime: "19:00",
+          localDate: "2026-09-26", // a watched Saturday
+          localTime: "18:10",
           format: "IMAX 70MM",
-          buyUrl: "https://www.fandango.com/amc-metreon-16-aanem/theater-page",
+          buyUrl: "https://www.fandango.com/regal-hacienda-crossings-screenx-imax-and-rpx-aaopk/theater-page",
         },
       ]);
       const results = await Promise.allSettled([

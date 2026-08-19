@@ -46,7 +46,7 @@ export function makeNotifier(env: Env): Notifier {
           "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          from: "Dune 70mm Watcher <onboarding@resend.dev>",
+          from: "Odyssey 70mm Watcher <onboarding@resend.dev>",
           to: [env.ALERT_EMAIL],
           subject: title,
           html: `<p>${body.replace(/\n/g, "<br>")}</p><p><a href="${clickUrl}">Buy tickets</a></p>`,
@@ -68,7 +68,7 @@ export function formatAlert(perfs: Performance[]): { title: string; body: string
     (p) => `${p.theater} — ${p.localDate} ${p.localTime} (${p.format})${p.soldOut ? " [SOLD OUT]" : ""}`
   );
   return {
-    title: `🎬 Dune: Part Three IMAX 70mm — NEW showtime(s) at ${theaters}`,
+    title: `🎬 The Odyssey IMAX 70mm — NEW showtime(s) at ${theaters}`,
     body: `New showtime(s) on ${dates}:\n${lines.join("\n")}`,
     clickUrl: first.buyUrl,
   };
